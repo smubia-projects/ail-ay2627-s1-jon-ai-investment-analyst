@@ -1,5 +1,5 @@
 version = 1
-revision = 5
+revision = 3
 requires-python = ">=3.12, <3.15"
 
 [[package]]
@@ -174,6 +174,7 @@ dependencies = [
     { name = "python-multipart" },
     { name = "reportlab" },
     { name = "requests" },
+    { name = "upstash-redis" },
     { name = "uvicorn" },
 ]
 
@@ -195,6 +196,7 @@ requires-dist = [
     { name = "python-multipart", specifier = ">=0.0.20,<1" },
     { name = "reportlab", specifier = ">=4.0,<5" },
     { name = "requests", specifier = ">=2.31,<3" },
+    { name = "upstash-redis", specifier = ">=1.1,<2" },
     { name = "uvicorn", specifier = ">=0.35,<1" },
 ]
 
@@ -815,6 +817,18 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/d9/68/f1b440335057bfce71b6e50a9d09445aa2ecbd08359a337976627b8409e7/tzdata-2026.5.tar.gz", hash = "sha256:8cc73c0a0bfca7dbfa59235d60b2eff82231dee33f53d206db1acd9173cfc0a7", size = 200404, upload-time = "2026-10-03T09:23:14.143Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/94/21/1e5995a1c920cce14e4bffae20c665ec10e7ed03ab25e006cd741092b718/tzdata-2026.5-py2.py3-none-any.whl", hash = "sha256:b683bd1b6659ddcd810ff02ad09ba821d4bf1065072805063eb35c49617905ac", size = 347996, upload-time = "2026-10-03T09:23:12.535Z" },
+]
+
+[[package]]
+name = "upstash-redis"
+version = "1.8.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "httpx" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/6d/63/98fffe42262376f4b39d371d9b583b33b13c08f662bda05c627827d2c290/upstash_redis-1.8.0.tar.gz", hash = "sha256:5fcd172802f517473b711de2fd1d2d2587c13c816cd2c570ad66fceb4f77e695", size = 47555, upload-time = "2026-08-26T09:50:41.96Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/05/04/a350e6b9b910c6006826dd63deb45be30fed85b826351588df27671bd92b/upstash_redis-1.8.0-py3-none-any.whl", hash = "sha256:e08f18d9a955b2b224ab8d1611a9782bc21054a83afb3b88df36809ff87096fa", size = 49959, upload-time = "2026-08-26T09:50:40.809Z" },
 ]
 
 [[package]]
