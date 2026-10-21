@@ -1,0 +1,4 @@
+# Test-only dependencies; not installed in the production image.
+-r requirements.txt
+pytest>=8.0,<9
+httpx>=0.28,<1
