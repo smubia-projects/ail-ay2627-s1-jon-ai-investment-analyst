@@ -1,3 +1,11 @@
+/**
+ * Central API access. The FastAPI backend runs on Cloud Run and the browser
+ * calls it directly via NEXT_PUBLIC_API_BASE, so each visitor is rate limited
+ * on their own IP (a server-side proxy would put every visitor in one bucket).
+ */
+
+export const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000").replace(/\/$/, "");
+
 export class ApiError extends Error {
   constructor(message: string, public status: number) {
     super(message);
@@ -8,6 +16,7 @@ async function parseError(response: Response): Promise<string> {
   try {
     const body = await response.json();
     if (typeof body.detail === "string") return body.detail;
+    if (body?.detail && typeof body.detail.message === "string") return body.detail.message;
     return JSON.stringify(body.detail ?? body);
   } catch {
     return `Request failed with status ${response.status}`;
@@ -15,13 +24,13 @@ async function parseError(response: Response): Promise<string> {
 }
 
 export async function apiGet<T>(path: string, options: { signal?: AbortSignal } = {}): Promise<T> {
-  const response = await fetch(`/api/backend${path}`, { cache: "no-store", signal: options.signal });
+  const response = await fetch(`${API_BASE}${path}`, { cache: "no-store", signal: options.signal });
   if (!response.ok) throw new ApiError(await parseError(response), response.status);
   return response.json() as Promise<T>;
 }
 
 export async function apiPost<T>(path: string, body: unknown, options: { signal?: AbortSignal } = {}): Promise<T> {
-  const response = await fetch(`/api/backend${path}`, {
+  const response = await fetch(`${API_BASE}${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -32,13 +41,13 @@ export async function apiPost<T>(path: string, body: unknown, options: { signal?
 }
 
 export async function apiUpload<T>(path: string, form: FormData, options: { signal?: AbortSignal } = {}): Promise<T> {
-  const response = await fetch(`/api/backend${path}`, { method: "POST", body: form, signal: options.signal });
+  const response = await fetch(`${API_BASE}${path}`, { method: "POST", body: form, signal: options.signal });
   if (!response.ok) throw new ApiError(await parseError(response), response.status);
   return response.json() as Promise<T>;
 }
 
 export async function apiDownload(path: string, body: unknown): Promise<{ blob: Blob; filename: string }> {
-  const response = await fetch(`/api/backend${path}`, {
+  const response = await fetch(`${API_BASE}${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body)

@@ -30,7 +30,7 @@ export function SettingsPage() {
   }
   async function testBackend() {
     setLoading(true); setError(""); setHealth("");
-    try { const result = await apiGet<{ status: string; inference_configured: boolean }>("/health"); setHealth(`Backend ${result.status}. External inference ${result.inference_configured ? "is configured" : "is not configured"}.`); }
+    try { const result = await apiGet<{ status: string; inference_configured: boolean }>("/api/health"); setHealth(`Backend ${result.status}. External inference ${result.inference_configured ? "is configured" : "is not configured"}.`); }
     catch (reason) { setError(reason instanceof Error ? reason.message : "Connection failed."); }
     finally { setLoading(false); }
   }
