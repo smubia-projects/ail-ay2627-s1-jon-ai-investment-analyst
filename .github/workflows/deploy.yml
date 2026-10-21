@@ -1,0 +1,72 @@
+name: Build and deploy
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:        # manual trigger: gh workflow run deploy.yml
+
+env:
+  SERVICE_NAME: ail-ay2627-s1-jon-ai-investment-analyst
+  REGION: asia-southeast3
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # Backend lives in backend/ — build context is that subdirectory.
+      - name: Build and push image to Docker Hub
+        run: |
+          REPO="docker.io/${{ secrets.DOCKERHUB_USERNAME }}/${SERVICE_NAME}"
+          IMAGE="${REPO}:${{ github.sha }}"
+          docker build -t "$IMAGE" -t "${REPO}:latest" backend
+          docker push "$IMAGE"
+          docker push "${REPO}:latest"
+          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      # The DOTENV secret holds the project's .env (KEY=VALUE lines). Convert it to a
+      # Cloud Run env file (YAML) so values containing commas (CORS_ORIGINS, etc.) are
+      # preserved — unlike --set-env-vars, which splits on commas.
+      - name: Render Cloud Run env file from DOTENV secret
+        run: |
+          printf '%s\n' "$DOTENV" | awk -F= '
+            { gsub(/\r/, "") }                                # strip CR (Windows CRLF .env)
+            /^[[:space:]]*#/ || /^[[:space:]]*$/ { next }
+            {
+              key=$1; sub(/^[[:space:]]+/,"",key); sub(/[[:space:]]+$/,"",key)
+              val=substr($0, index($0,"=")+1)
+              sub(/[[:space:]]+#.*$/, "", val)                # strip inline comment (space + #...)
+              sub(/[[:space:]]+$/, "", val)                   # trim trailing whitespace
+              gsub(/\\/,"\\\\",val); gsub(/"/,"\\\"",val)
+              printf "%s: \"%s\"\n", key, val
+            }
+          ' > env.yaml
+        env:
+          DOTENV: ${{ secrets.DOTENV }}
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy "$SERVICE_NAME" \
+            --image "$IMAGE" \
+            --region "$REGION" \
+            --allow-unauthenticated \
+            --min-instances=0 --max-instances=2 --cpu=1 --cpu-throttling --memory=512Mi \
+            --env-vars-file=env.yaml \
+            --quiet
