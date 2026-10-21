@@ -1,25 +1,24 @@
 # EquityLens AI
 
-EquityLens AI is a Vercel-compatible investment research platform with a Next.js frontend and a stateless FastAPI backend. It preserves the original deterministic Python financial engine while replacing the Streamlit runtime, local SQLite cloud assumptions, and local-only UI.
+EquityLens AI is an investment research platform with a Next.js frontend and a stateless FastAPI backend. It preserves the original deterministic Python financial engine while replacing the Streamlit runtime, local SQLite cloud assumptions, and local-only UI.
 
 All built-in company data is explicitly synthetic. EquityLens is research software, not investment advice.
 
 ## Architecture
 
 ```text
-Browser
-  -> Next.js 16 / React 19 / TypeScript / Tailwind / Recharts
-  -> same-origin /api/backend/* proxy
-  -> FastAPI on Vercel Python runtime
+Browser (Vercel)
+  -> Next.js 16 / React 19 / TypeScript / Tailwind / Recharts   (root: frontend/)
+  -> NEXT_PUBLIC_API_BASE  (direct HTTPS calls, CORS-restricted)
+  -> FastAPI on Google Cloud Run                                 (build context: backend/)
   -> existing deterministic EquityLens Python modules
+  -> OpenRouter (optional live AI, rate limited per visitor IP)
 ```
 
-The repository is configured as **one Vercel Services project** with two independently built service roots:
-
-- Public `frontend/` service: Next.js
-- Private `backend/` service: FastAPI and the deterministic Python engine
-
-The browser calls only the Next.js origin. `frontend/app/api/backend/[...path]/route.ts` forwards allowlisted requests over a private service binding. Vercel generates the server-only `BACKEND_URL` for every local, preview, and production deployment.
+- `frontend/` is a plain Next.js project on Vercel (`frontend/vercel.json`).
+- `backend/` is an API-only, stateless FastAPI container on Cloud Run (`backend/Dockerfile`), deployed by `.github/workflows/deploy.yml`.
+- The browser calls the backend directly so the shared rate limiter sees each visitor's own IP. Only `POST /v1/inference/generate` is rate limited (bucket `gen`); everything else is deterministic and unlimited.
+- The synthetic demo company loads by default, so visitors see a full workspace without uploading anything.
 
 ## Features
 
@@ -39,8 +38,8 @@ The browser calls only the Next.js origin. `frontend/app/api/backend/[...path]/r
 - Prompt strategy comparison with objective and human-review metrics separated
 - Deterministic claim checks for exact excerpts, source locators, and calculation reconciliation
 - Persisted financial-analysis, thesis, and report manifests tied to dependency fingerprints; stale artifacts are hidden or excluded
-- Optional external OpenAI-compatible inference only when the backend operator configures it
-- No paid API, AI subscription, database, or object-storage service required
+- Optional one-click live AI through OpenRouter ("Run with live AI" for agents, "Ask AI" in research chat); Manual AI copy/paste always works as the fallback
+- No database or object-storage service required
 
 ## Reused Python Engine
 
@@ -72,19 +71,23 @@ uv sync --locked
 cd ..
 ```
 
-Run both services and their generated binding from the repository root:
+Run the backend and frontend in two terminals:
 
 ```bash
-npx vercel dev -L
+# backend/ (reads env vars from the shell; see ../.env.example)
+uv run uvicorn app.main:app --reload --port 8000
+
+# frontend/ (NEXT_PUBLIC_API_BASE defaults to http://localhost:8000)
+npm run dev
 ```
 
-Open the URL printed by Vercel CLI. The `-L` flag uses only local configuration and does not require Vercel authentication. For independent service development, run `uv run uvicorn app.main:app --reload --port 8000` from `backend/`, set `BACKEND_URL=http://localhost:8000` in `frontend/.env.local`, and run `npm run dev` from `frontend/`.
+Without `OPENROUTER_API_KEY` the live AI buttons return a "not configured" notice and the manual flow is used. Without Upstash credentials rate limiting is disabled.
 
 ## API Surface
 
 | Endpoint | Purpose |
 |---|---|
-| `GET /health` | Runtime and optional inference status |
+| `GET /api/health` | Health check and live-AI status (`/health` kept as an alias) |
 | `GET /v1/demo` | Synthetic stateless demo data |
 | `POST /v1/financials/analyze` | Historical ratios and quality checks |
 | `POST /v1/valuation/dcf` | DCF, scenarios, and sensitivity |
@@ -101,7 +104,7 @@ Open the URL printed by Vercel CLI. The `-L` flag uses only local configuration 
 | `POST /v1/evidence/verify` | Deterministic claim locator, excerpt, and calculation checks |
 | `POST /v1/thesis` | Deterministic classified thesis |
 | `POST /v1/reports/{docx,pdf,xlsx}` | Downloadable report generation |
-| `POST /v1/inference/generate` | Disabled unless external inference is configured |
+| `POST /v1/inference/generate` | Live AI via OpenRouter; 501 if unconfigured, 429 over quota, 503 when paused |
 
 All arithmetic runs in Python. An LLM never calculates DCF outputs, ratios, scenarios, or sensitivity values.
 
@@ -124,7 +127,7 @@ Do not enable browser document-text persistence on shared machines or where poli
 
 Synchronous serverless processing is intentionally bounded:
 
-- Maximum upload: 4 MB, leaving multipart overhead below Vercel's 4.5 MB function payload limit
+- Maximum upload: 4 MB, keeping synchronous parsing within a 512 MiB Cloud Run instance
 - Maximum PDF length: 100 pages
 - Supported production uploads: PDF, CSV, XLSX
 - Maximum returned searchable chunks: 250
@@ -152,17 +155,9 @@ Default and credential-free:
 
 Disables narrative inference while retaining all deterministic calculations, document processing, retrieval, and exports.
 
-### Configured External Inference
+### Live AI (OpenRouter)
 
-Optional and disabled by default. Configure an OpenAI-compatible endpoint only when required:
-
-```text
-INFERENCE_URL=https://your-inference-host.example/v1/chat/completions
-INFERENCE_MODEL=your-model
-INFERENCE_TOKEN=optional-token
-```
-
-This mode does not require or assume a paid provider. `localhost` Ollama is not a production dependency.
+Set `OPENROUTER_API_KEY` (and optionally `OPENROUTER_MODEL`, default `google/gemini-2.5-flash`) on the backend. The agents page then offers **Run with live AI** and research chat offers **Ask AI**; replies still pass the same schema and citation-allowlist validation before they are saved. The route is limited per IP by the shared AI Lodge rate-limit engine. When the limit is hit the AI Lodge CTA modal appears; when the demo is paused an operator notice appears. In both cases the manual copy/paste flow keeps working.
 
 ## Tests and Build
 
@@ -184,45 +179,17 @@ npm audit --prefix frontend --audit-level=moderate
 
 The suite does not require internet access, AI credentials, Ollama, a cloud database, or uploaded fixtures. See `AUDIT.md` for the page-by-page audit, verification matrix, and residual limitations.
 
-## Vercel Deployment
+## Deployment
 
-The root `vercel.json` builds and deploys both services together. Keep the Vercel project Root Directory at the repository root and select the **Services** framework preset. Do not set build or output-directory overrides.
-
-For the existing `lukaloverfinal` project:
-
-1. Open **Settings > Build and Deployment**.
-2. Set **Framework Preset** to **Services**.
-3. Keep **Root Directory** empty so it resolves to the repository root.
-4. Remove any manually configured `BACKEND_URL`; the `frontend` service binding generates it per deployment.
-5. Keep `lukaloverfinal.vercel.app` assigned to this same project.
-6. Redeploy the latest commit.
-
-The equivalent authenticated CLI flow is:
+**Backend (Cloud Run).** Pushing to `main` runs `.github/workflows/deploy.yml`, which builds `backend/`, pushes `docker.io/<DOCKERHUB_USERNAME>/ail-ay2627-s1-jon-ai-investment-analyst`, and deploys the Cloud Run service of the same name with env vars from the repo's `DOTENV` secret:
 
 ```bash
-vercel link
-vercel project update --framework services
-vercel deploy
-vercel curl /api/backend/health --deployment YOUR_PREVIEW_URL
-vercel deploy --prod
-vercel curl /api/backend/health
+cp .env.example .env    # fill in values; never commit it
+gh secret set DOTENV --repo smubia-projects/ail-ay2627-s1-jon-ai-investment-analyst < .env
+gh workflow run deploy.yml
 ```
 
-Expected production checks:
-
-```text
-https://lukaloverfinal.vercel.app/                    -> EquityLens HTML dashboard
-https://lukaloverfinal.vercel.app/dashboard           -> EquityLens HTML dashboard
-https://lukaloverfinal.vercel.app/research            -> AI research agents
-https://lukaloverfinal.vercel.app/prompts             -> Prompt engineering lab
-https://lukaloverfinal.vercel.app/api/backend/health -> FastAPI health JSON through Next.js
-```
-
-The backend has no top-level public rewrite and is reachable only through the frontend binding. CORS does not affect normal dashboard requests because the browser calls the same-origin Next.js proxy.
-
-## Why the Original Error Is Resolved
-
-The root Streamlit `app.py` has been removed. Vercel Services now builds the public Next.js service from `frontend/` and imports `app.main:app` only inside the private `backend/` service. The project root can no longer be misdetected as a standalone FastAPI deployment.
+**Frontend (Vercel).** Import the repo, set **Root Directory** to `frontend`, and set `NEXT_PUBLIC_API_BASE` to the Cloud Run URL. Then put the Vercel URL in `CORS_ORIGINS` in `.env`, re-upload `DOTENV`, and re-run the workflow.
 
 ## Limitations
 
