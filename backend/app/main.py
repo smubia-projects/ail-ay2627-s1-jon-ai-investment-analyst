@@ -64,7 +64,7 @@ from equitylens.valuation import (
     sensitivity_analysis,
 )
 
-# Leave headroom below Vercel's 4.5 MB total function payload limit for multipart framing.
+# Keep synchronous parsing small enough for a 512 MiB Cloud Run instance.
 MAX_UPLOAD_BYTES = 4 * 1024 * 1024
 MAX_PDF_PAGES = 100
 MAX_RETURNED_CHUNKS = 250
@@ -76,13 +76,16 @@ app = FastAPI(
     description="Stateless deterministic financial analytics and document-processing API.",
 )
 
-origins = [origin.strip() for origin in os.getenv("ALLOWED_ORIGINS", "http://localhost:3000").split(",") if origin.strip()]
+# Comma-separated browser origins allowed to call the API (the Vercel frontend URL in production).
+origins = [origin.strip() for origin in os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",") if origin.strip()]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=False,
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["Content-Type"],
+    # Report downloads read the filename from Content-Disposition across origins.
+    expose_headers=["Content-Disposition"],
 )
 
 
@@ -91,6 +94,7 @@ def root() -> dict[str, str]:
     return {"service": "EquityLens AI API", "status": "ready", "persistence": "stateless"}
 
 
+@app.get("/api/health")
 @app.get("/health")
 def health() -> dict[str, Any]:
     return {
