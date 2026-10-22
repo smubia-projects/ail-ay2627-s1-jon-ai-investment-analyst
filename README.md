@@ -81,7 +81,7 @@ uv run uvicorn app.main:app --reload --port 8000
 npm run dev
 ```
 
-Without `OPENROUTER_API_KEY` the live AI buttons return a "not configured" notice and the manual flow is used. Without Upstash credentials rate limiting is disabled.
+Without `API_KEY` the live AI buttons return a "not configured" notice and the manual flow is used. Without Upstash credentials rate limiting is disabled.
 
 ## API Surface
 
@@ -157,7 +157,7 @@ Disables narrative inference while retaining all deterministic calculations, doc
 
 ### Live AI (OpenRouter)
 
-Set `OPENROUTER_API_KEY` (and optionally `OPENROUTER_MODEL`, default `google/gemini-2.5-flash`) on the backend. The agents page then offers **Run with live AI** and research chat offers **Ask AI**; replies still pass the same schema and citation-allowlist validation before they are saved. The route is limited per IP by the shared AI Lodge rate-limit engine. When the limit is hit the AI Lodge CTA modal appears; when the demo is paused an operator notice appears. In both cases the manual copy/paste flow keeps working.
+Set `API_KEY` (and optionally `MODEL_NAME`, default `google/gemini-2.5-flash`) on the backend. The agents page then offers **Run with live AI** and research chat offers **Ask AI**; replies still pass the same schema and citation-allowlist validation before they are saved. The route is limited per IP by the shared AI Lodge rate-limit engine. When the limit is hit the AI Lodge CTA modal appears; when the demo is paused an operator notice appears. In both cases the manual copy/paste flow keeps working.
 
 ## Tests and Build
 

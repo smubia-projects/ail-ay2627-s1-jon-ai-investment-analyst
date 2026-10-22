@@ -394,16 +394,16 @@ def generate_report(report_format: Literal["docx", "pdf", "xlsx"], payload: Repo
     return download(content, f"{filename}-valuation.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
 
-OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+OPENROUTER_URL = (os.getenv("API_BASE_URL", "").strip() or os.getenv("OPENROUTER_BASE_URL", "").strip() or "https://openrouter.ai/api/v1").rstrip("/") + "/chat/completions"
 DEFAULT_OPENROUTER_MODEL = "google/gemini-2.5-flash"
 
 
 def openrouter_model() -> str:
-    return os.getenv("OPENROUTER_MODEL", "").strip() or DEFAULT_OPENROUTER_MODEL
+    return (os.getenv("MODEL_NAME", "").strip() or os.getenv("OPENROUTER_MODEL", "")).strip() or DEFAULT_OPENROUTER_MODEL
 
 
 def inference_configured() -> bool:
-    return bool(os.getenv("OPENROUTER_API_KEY", "").strip())
+    return bool((os.getenv("API_KEY", "").strip() or os.getenv("OPENROUTER_API_KEY", "")).strip())
 
 
 @app.post("/v1/inference/generate")
@@ -413,7 +413,7 @@ def configured_inference(payload: InferenceRequest, request: Request) -> dict[st
     Returns 501 when no OPENROUTER_API_KEY is set so the frontend can fall back to
     Manual AI Mode. 503 is reserved for the rate-limit kill switch.
     """
-    api_key = os.getenv("OPENROUTER_API_KEY", "").strip()
+    api_key = (os.getenv("API_KEY", "").strip() or os.getenv("OPENROUTER_API_KEY", "")).strip()
     if not api_key:
         raise HTTPException(status_code=501, detail="Live AI is not configured on this server. Use Manual AI Mode.")
     # Only this LLM route is rate limited (bucket "gen"); 429 over quota, 503 when paused.
