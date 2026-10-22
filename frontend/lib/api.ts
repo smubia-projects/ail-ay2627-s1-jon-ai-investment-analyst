@@ -41,8 +41,8 @@ async function parseError(response: Response): Promise<string> {
 export function liveAiFallback(reason: unknown): string | null {
   if (!(reason instanceof ApiError)) return null;
   if (reason.status === 501) return "Live AI is not configured on this deployment. Copy the prompt and use the manual paste flow instead.";
-  if (reason.status === 429) return "Live AI quota reached for this demo. You can still copy the prompt and paste a response manually.";
-  if (reason.status === 503) return "Live AI is temporarily paused. You can still copy the prompt and paste a response manually.";
+  if (reason.status === 429) return "Live AI quota reached for this demo.";
+  if (reason.status === 503) return "Live AI is temporarily paused.";
   return null;
 }
 
