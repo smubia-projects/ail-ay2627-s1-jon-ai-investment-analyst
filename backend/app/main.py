@@ -394,8 +394,8 @@ def generate_report(report_format: Literal["docx", "pdf", "xlsx"], payload: Repo
     return download(content, f"{filename}-valuation.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
 
-OPENROUTER_URL = (os.getenv("API_BASE_URL", "").strip() or os.getenv("OPENROUTER_BASE_URL", "").strip() or "https://openrouter.ai/api/v1").rstrip("/") + "/chat/completions"
-DEFAULT_OPENROUTER_MODEL = "google/gemini-2.5-flash"
+OPENROUTER_URL = (os.getenv("API_BASE_URL", "").strip() or os.getenv("OPENROUTER_BASE_URL", "").strip() or "https://api.apiyi.com/v1").rstrip("/") + "/chat/completions"
+DEFAULT_OPENROUTER_MODEL = "gemini-3.5-flash-lite"
 
 
 def openrouter_model() -> str:

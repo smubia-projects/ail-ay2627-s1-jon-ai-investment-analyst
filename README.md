@@ -157,7 +157,7 @@ Disables narrative inference while retaining all deterministic calculations, doc
 
 ### Live AI (OpenRouter)
 
-Set `API_KEY` (and optionally `MODEL_NAME`, default `google/gemini-2.5-flash`) on the backend. The agents page then offers **Run with live AI** and research chat offers **Ask AI**; replies still pass the same schema and citation-allowlist validation before they are saved. The route is limited per IP by the shared AI Lodge rate-limit engine. When the limit is hit the AI Lodge CTA modal appears; when the demo is paused an operator notice appears. In both cases the live AI action stops there; Manual AI Mode remains a separate option you can choose in Settings.
+Set `API_KEY` (and optionally `MODEL_NAME`, default `gemini-3.5-flash-lite`) on the backend. The agents page then offers **Run with live AI** and research chat offers **Ask AI**; replies still pass the same schema and citation-allowlist validation before they are saved. The route is limited per IP by the shared AI Lodge rate-limit engine. When the limit is hit the AI Lodge CTA modal appears; when the demo is paused an operator notice appears. In both cases the live AI action stops there; Manual AI Mode remains a separate option you can choose in Settings.
 
 ## Tests and Build
 
