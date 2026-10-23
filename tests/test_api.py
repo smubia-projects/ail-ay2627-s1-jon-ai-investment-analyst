@@ -130,8 +130,8 @@ def test_inference_calls_openrouter_when_configured(monkeypatch):
     response = client.post("/v1/inference/generate", json={"prompt": "test"})
     assert response.status_code == 200
     assert response.json()["output"] == '{"ok": true}'
-    assert captured["url"] == "https://openrouter.ai/api/v1/chat/completions"
+    assert captured["url"] == "https://api.apiyi.com/v1/chat/completions"
     assert captured["headers"]["Authorization"] == "Bearer test-key"
-    assert captured["body"]["model"] == "google/gemini-2.5-flash"
+    assert captured["body"]["model"] == "gemini-3.5-flash-lite"
     assert captured["body"]["response_format"] == {"type": "json_object"}
     assert client.get("/api/health").json()["inference_configured"] is True
