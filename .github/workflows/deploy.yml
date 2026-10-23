@@ -63,10 +63,16 @@ jobs:
 
       - name: Deploy to Cloud Run
         run: |
-          gcloud run deploy "$SERVICE_NAME" \
-            --image "$IMAGE" \
-            --region "$REGION" \
-            --allow-unauthenticated \
-            --min-instances=0 --max-instances=2 --cpu=1 --cpu-throttling --memory=512Mi \
-            --env-vars-file=env.yaml \
-            --quiet
+          # Cloud Run pulls Docker Hub images through mirror.gcr.io, which can take a minute to see a
+          # just-pushed tag ("Image ... not found"), so retry a few times before failing.
+          for attempt in 1 2 3 4; do
+            gcloud run deploy "$SERVICE_NAME" \
+              --image "$IMAGE" \
+              --region "$REGION" \
+              --allow-unauthenticated \
+              --min-instances=0 --max-instances=2 --cpu=1 --cpu-throttling --memory=512Mi \
+              --env-vars-file=env.yaml \
+              --quiet && exit 0
+            [ "$attempt" = 4 ] && exit 1
+            echo "Deploy attempt $attempt failed; retrying in 30s"; sleep 30
+          done
