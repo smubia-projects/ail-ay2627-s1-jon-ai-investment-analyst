@@ -12,7 +12,7 @@ import { Button, Card, Notice, PageHeader, Stat, formatMoney } from "@/component
 export function DashboardPage() {
   const { workspace, createProject, updateWorkspace } = useWorkspace();
   const [backend, setBackend] = useState<"checking" | "online" | "offline">("checking");
-  useEffect(() => { apiGet<{ status: string }>("/health").then(() => setBackend("online")).catch(() => setBackend("offline")); }, []);
+  useEffect(() => { apiGet<{ status: string }>("/api/health").then(() => setBackend("online")).catch(() => setBackend("offline")); }, []);
   const history = useMemo(() => {
     const grouped: Record<string, Record<string, number>> = {};
     for (const figure of workspace.figures) if (figure.value !== null) grouped[figure.period] = { ...grouped[figure.period], [figure.metric]: figure.value };
