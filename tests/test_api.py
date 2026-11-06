@@ -97,7 +97,7 @@ def test_report_download_and_unconfigured_inference():
     assert report.content.startswith(b"%PDF")
     assert "attachment" in report.headers["content-disposition"]
     inference = client.post("/v1/inference/generate", json={"prompt": "test"})
-    assert inference.status_code == 503
+    assert inference.status_code == 501
 
 
 def test_upload_rejects_unsupported_files():
@@ -106,3 +106,32 @@ def test_upload_rejects_unsupported_files():
         files={"file": ("notes.txt", BytesIO(b"text"), "text/plain")},
     )
     assert response.status_code == 415
+
+
+def test_inference_calls_openrouter_when_configured(monkeypatch):
+    import app.main as main
+
+    captured = {}
+
+    class FakeResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"choices": [{"message": {"content": '{"ok": true}'}}]}
+
+    def fake_post(url, headers, json, timeout):
+        captured.update(url=url, headers=headers, body=json)
+        return FakeResponse()
+
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    monkeypatch.delenv("OPENROUTER_MODEL", raising=False)
+    monkeypatch.setattr(main.requests, "post", fake_post)
+    response = client.post("/v1/inference/generate", json={"prompt": "test"})
+    assert response.status_code == 200
+    assert response.json()["output"] == '{"ok": true}'
+    assert captured["url"] == "https://openrouter.ai/api/v1/chat/completions"
+    assert captured["headers"]["Authorization"] == "Bearer test-key"
+    assert captured["body"]["model"] == "google/gemini-2.5-flash"
+    assert captured["body"]["response_format"] == {"type": "json_object"}
+    assert client.get("/api/health").json()["inference_configured"] is True

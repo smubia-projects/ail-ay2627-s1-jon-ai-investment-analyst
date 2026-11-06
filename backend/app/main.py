@@ -64,7 +64,7 @@ from equitylens.valuation import (
     sensitivity_analysis,
 )
 
-# Leave headroom below Vercel's 4.5 MB total function payload limit for multipart framing.
+# Keep synchronous parsing small enough for a 512 MiB Cloud Run instance.
 MAX_UPLOAD_BYTES = 4 * 1024 * 1024
 MAX_PDF_PAGES = 100
 MAX_RETURNED_CHUNKS = 250
@@ -76,13 +76,16 @@ app = FastAPI(
     description="Stateless deterministic financial analytics and document-processing API.",
 )
 
-origins = [origin.strip() for origin in os.getenv("ALLOWED_ORIGINS", "http://localhost:3000").split(",") if origin.strip()]
+# Comma-separated browser origins allowed to call the API (the Vercel frontend URL in production).
+origins = [origin.strip() for origin in os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",") if origin.strip()]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=False,
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["Content-Type"],
+    # Report downloads read the filename from Content-Disposition across origins.
+    expose_headers=["Content-Disposition"],
 )
 
 
@@ -91,13 +94,14 @@ def root() -> dict[str, str]:
     return {"service": "EquityLens AI API", "status": "ready", "persistence": "stateless"}
 
 
+@app.get("/api/health")
 @app.get("/health")
 def health() -> dict[str, Any]:
     return {
         "status": "ok",
         "service": "equitylens-api",
         "manual_ai_default": True,
-        "inference_configured": bool(os.getenv("INFERENCE_URL")),
+        "inference_configured": inference_configured(),
     }
 
 
@@ -389,34 +393,54 @@ def generate_report(report_format: Literal["docx", "pdf", "xlsx"], payload: Repo
     return download(content, f"{filename}-valuation.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
 
+OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+DEFAULT_OPENROUTER_MODEL = "google/gemini-2.5-flash"
+
+
+def openrouter_model() -> str:
+    return os.getenv("OPENROUTER_MODEL", "").strip() or DEFAULT_OPENROUTER_MODEL
+
+
+def inference_configured() -> bool:
+    return bool(os.getenv("OPENROUTER_API_KEY", "").strip())
+
+
 @app.post("/v1/inference/generate")
 def configured_inference(payload: InferenceRequest) -> dict[str, Any]:
-    """Optional OpenAI-compatible inference. It is disabled unless server operators configure it."""
-    url = os.getenv("INFERENCE_URL")
-    model = os.getenv("INFERENCE_MODEL")
-    if not url or not model:
-        raise HTTPException(status_code=503, detail="External inference is not configured. Use Manual AI Mode.")
-    headers = {"Content-Type": "application/json"}
-    token = os.getenv("INFERENCE_TOKEN")
-    if token:
-        headers["Authorization"] = f"Bearer {token}"
+    """Run a prepared prompt through OpenRouter.
+
+    Returns 501 when no OPENROUTER_API_KEY is set so the frontend can fall back to
+    Manual AI Mode. 503 is reserved for the rate-limit kill switch.
+    """
+    api_key = os.getenv("OPENROUTER_API_KEY", "").strip()
+    if not api_key:
+        raise HTTPException(status_code=501, detail="Live AI is not configured on this server. Use Manual AI Mode.")
+    model = openrouter_model()
+    body: dict[str, Any] = {
+        "model": model,
+        "messages": [{"role": "user", "content": payload.prompt}],
+        "max_tokens": 4096,
+    }
+    if payload.json_mode:
+        body["response_format"] = {"type": "json_object"}
     try:
         response = requests.post(
-            url,
-            headers=headers,
-            json={
-                "model": model,
-                "messages": [{"role": "user", "content": payload.prompt}],
-                "response_format": {"type": "json_object"} if payload.json_mode else None,
+            OPENROUTER_URL,
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+                "X-Title": "EquityLens AI",
             },
-            timeout=45,
+            json=body,
+            timeout=60,
         )
         response.raise_for_status()
-        body = response.json()
-        output = body["choices"][0]["message"]["content"]
-    except (requests.RequestException, KeyError, IndexError, ValueError) as exc:
-        raise HTTPException(status_code=502, detail="The configured inference service failed to return a valid response.") from exc
-    return {"output": output, "model": model, "provenance": "Configured external inference service"}
+        output = response.json()["choices"][0]["message"]["content"]
+        if not isinstance(output, str) or not output.strip():
+            raise ValueError("Empty model output")
+    except (requests.RequestException, KeyError, IndexError, TypeError, ValueError) as exc:
+        raise HTTPException(status_code=502, detail="The AI model failed to return a valid response. Try again or use Manual AI Mode.") from exc
+    return {"output": output, "model": model, "provenance": "OpenRouter inference"}
 
 
 def dcf_result_json(result: Any) -> dict[str, Any]:
