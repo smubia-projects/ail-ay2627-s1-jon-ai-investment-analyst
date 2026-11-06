@@ -11,6 +11,7 @@ import {
 import { workflowStatus } from "@/lib/research";
 import { useWorkspace } from "@/lib/workspace";
 import { GuidedWorkflow } from "@/components/guided-workflow";
+import { RateLimitGate } from "@/components/rate-limit-cta";
 
 export const navigation = [
   { href: "/dashboard", label: "Dashboard", icon: Gauge },
@@ -76,6 +77,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </header>
         <GuidedWorkflow />
         <main key={activeProjectId} className="mx-auto max-w-[1560px] p-4 sm:p-6 lg:p-8">{children}</main>
+        <RateLimitGate />
       </div>
     </div>
   );

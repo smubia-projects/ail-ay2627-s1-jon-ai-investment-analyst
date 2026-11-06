@@ -11,10 +11,11 @@ from typing import Any, Literal
 import pandas as pd
 import pymupdf
 import requests
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
+from app.rate_limit import check_rate_limit
 from app.schemas import (
     AgentPromptRequest,
     AgentValidationRequest,
@@ -406,7 +407,7 @@ def inference_configured() -> bool:
 
 
 @app.post("/v1/inference/generate")
-def configured_inference(payload: InferenceRequest) -> dict[str, Any]:
+def configured_inference(payload: InferenceRequest, request: Request) -> dict[str, Any]:
     """Run a prepared prompt through OpenRouter.
 
     Returns 501 when no OPENROUTER_API_KEY is set so the frontend can fall back to
@@ -415,6 +416,8 @@ def configured_inference(payload: InferenceRequest) -> dict[str, Any]:
     api_key = os.getenv("OPENROUTER_API_KEY", "").strip()
     if not api_key:
         raise HTTPException(status_code=501, detail="Live AI is not configured on this server. Use Manual AI Mode.")
+    # Only this LLM route is rate limited (bucket "gen"); 429 over quota, 503 when paused.
+    check_rate_limit(request, "gen")
     model = openrouter_model()
     body: dict[str, Any] = {
         "model": model,
