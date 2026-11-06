@@ -1,5 +1,7 @@
 # Streamlit to Vercel Migration Record
 
+> Historical record. Hosting has since moved to Next.js on Vercel plus FastAPI on Cloud Run (no Vercel Services, no `/api/backend` proxy, OpenRouter instead of `INFERENCE_*`). See README.md.
+
 ## Decision
 
 EquityLens now uses a Next.js frontend and a stateless FastAPI backend deployed together as one Vercel Services project.
