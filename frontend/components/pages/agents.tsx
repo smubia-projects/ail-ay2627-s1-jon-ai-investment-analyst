@@ -1,8 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { CheckCircle2, Clipboard, Play, ShieldAlert, TriangleAlert } from "lucide-react";
-import { apiPost } from "@/lib/api";
+import { CheckCircle2, Clipboard, Play, ShieldAlert, Sparkles, TriangleAlert } from "lucide-react";
+import { apiPost, liveAiFallback } from "@/lib/api";
 import { agentInputFingerprint, currentClaimAssessments, currentDcfResult, financialFingerprint, fingerprint, isAgentRunStale, researchFingerprint } from "@/lib/research";
 import type { AgentRun, ClaimAssessment, EvidenceChunk } from "@/lib/types";
 import { useWorkspace } from "@/lib/workspace";
@@ -156,8 +156,8 @@ export function AgentsPage() {
     setLoading(true); setError(""); setMessage("");
     try {
       const generated = await apiPost<{ output: string; model: string; provenance: string }>("/v1/inference/generate", { prompt: packet.prompt, json_mode: true });
-      setRaw(generated.output); setModelId(generated.model); setGeneratedProvenance(`${generated.provenance}: ${generated.model}`); setMessage(`Response received from configured model ${generated.model}. Validate it before saving.`);
-    } catch (reason) { setError(reason instanceof Error ? reason.message : "Configured inference failed."); }
+      setRaw(generated.output); setModelId(generated.model); setGeneratedProvenance(`${generated.provenance}: ${generated.model}`); setMessage(`Response received from ${generated.model}. Validate it before saving.`);
+    } catch (reason) { setError(liveAiFallback(reason) ?? (reason instanceof Error ? reason.message : "Live AI request failed.")); }
     finally { setLoading(false); }
   }
 
@@ -194,7 +194,7 @@ export function AgentsPage() {
             <div className="flex items-center justify-between"><div><p className="eyebrow">Step 1</p><h2 className="mt-1 text-xl font-semibold">Copy specialized prompt</h2></div><Button variant="secondary" disabled={!packet} onClick={copyPrompt}><Clipboard size={15}/> Copy</Button></div>
             <TextArea label="Prompt" value={packet?.prompt ?? ""} readOnly className="mt-4 min-h-80 font-mono text-xs" />
             {packet && <p className="mt-2 break-all text-[10px] text-mist">{packet.prompt_version} · prompt {packet.prompt_hash.slice(0, 16)} · input {packet.input_hash}</p>}
-            {workspace.settings.mode === "Configured External Inference" && <Button loading={loading} disabled={!packet || packetStale} className="mt-3" onClick={runConfiguredInference}>Run configured inference</Button>}
+            {!analyticsOnly && <div className="mt-3 flex flex-wrap items-center gap-3"><Button loading={loading} disabled={!packet || packetStale} onClick={runConfiguredInference}><Sparkles size={15}/> Run with live AI</Button><span className="text-xs text-mist">Or copy the prompt into any chat model and paste the JSON below.</span></div>}
           </Card>
           <Card>
             <p className="eyebrow">Step 2</p><h2 className="mt-1 text-xl font-semibold">Identify model, import and validate JSON</h2>

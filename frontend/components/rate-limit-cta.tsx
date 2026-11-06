@@ -14,7 +14,7 @@ export const PROJECT_CTA = {
   accentColor: '#D4A84F',
   headline: "You've worked the research desk!",
   description:
-    'This demo ran {count} live AI analyses for you. Want to build source-grounded AI tools like this? Join us, or keep going with the manual copy/paste flow.',
+    'This demo ran {count} live AI analyses for you. Want to build source-grounded AI tools like this? Join us and build projects like this.',
   programme: 'AI Lodge',
   programmeLink: 'https://www.smubia.com/ailodge',
   githubLink: 'https://github.com/smubia-projects/ail-ay2627-s1-jon-ai-investment-analyst',

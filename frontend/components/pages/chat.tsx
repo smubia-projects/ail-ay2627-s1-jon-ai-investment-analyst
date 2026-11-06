@@ -1,8 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Clipboard, Send, Trash2 } from "lucide-react";
-import { apiPost } from "@/lib/api";
+import { Clipboard, Send, Sparkles, Trash2 } from "lucide-react";
+import { apiPost, liveAiFallback } from "@/lib/api";
 import { currentDcfResult, fingerprint, researchFingerprint } from "@/lib/research";
 import type { ChatMessage, EvidenceChunk } from "@/lib/types";
 import { useWorkspace } from "@/lib/workspace";
@@ -43,17 +43,35 @@ export function ChatPage() {
     finally { setLoading(false); }
   }
 
-  async function validate() {
+  async function validate(rawOutput: string = raw, provenanceOverride?: string) {
     if (!pending || pending.inputHash !== inputHash || loading) return;
     setLoading(true); setError(""); setMessage("");
     try {
-      const response = await apiPost<{ valid: boolean; parsed_output: { answer: string; citations: string[] } | null; errors: string[]; provenance: string }>("/v1/chat/validate", { raw_output: raw, question: pending.question, evidence: pending.evidence });
+      const response = await apiPost<{ valid: boolean; parsed_output: { answer: string; citations: string[] } | null; errors: string[]; provenance: string }>("/v1/chat/validate", { raw_output: rawOutput, question: pending.question, evidence: pending.evidence });
       if (!response.valid || !response.parsed_output) { setError(response.errors.join(" ")); return; }
-      const assistant: ChatMessage = { id: crypto.randomUUID(), role: "assistant", content: response.parsed_output.answer, citations: response.parsed_output.citations, provenance: response.provenance, input_hash: pending.inputHash, source_ids: pending.evidence.map((item) => item.chunk_id ?? "") };
+      const provenance = provenanceOverride ? `${provenanceOverride}; ${response.provenance.replace(/^Manual import with /, "")}` : response.provenance;
+      const assistant: ChatMessage = { id: crypto.randomUUID(), role: "assistant", content: response.parsed_output.answer, citations: response.parsed_output.citations, provenance, input_hash: pending.inputHash, source_ids: pending.evidence.map((item) => item.chunk_id ?? "") };
       updateWorkspace((current) => ({ ...current, chats: [...current.chats, assistant] }));
       setPending(null); setRaw(""); setMessage("Answer saved after schema and citation-allowlist validation. Citation entailment still requires human review.");
     } catch (reason) { setError(reason instanceof Error ? reason.message : "Response validation failed."); }
     finally { setLoading(false); }
+  }
+
+  // Live AI: send the same grounded prompt to the backend's OpenRouter route, then
+  // run the reply through the existing schema + citation-allowlist validation.
+  async function askAi() {
+    if (!pending || pending.inputHash !== inputHash || loading || analyticsOnly) return;
+    setLoading(true); setError(""); setMessage("");
+    let generated: { output: string; model: string; provenance: string };
+    try {
+      generated = await apiPost<{ output: string; model: string; provenance: string }>("/v1/inference/generate", { prompt: pending.prompt, json_mode: true });
+    } catch (reason) {
+      setError(liveAiFallback(reason) ?? (reason instanceof Error ? reason.message : "Live AI request failed."));
+      setLoading(false);
+      return;
+    }
+    setRaw(generated.output);
+    await validate(generated.output, `${generated.provenance}: ${generated.model}`);
   }
 
   async function copyPrompt() {
@@ -73,7 +91,7 @@ export function ChatPage() {
         <div className="mt-4 flex gap-2"><input aria-label="Research question" maxLength={2000} disabled={loading || analyticsOnly || Boolean(pending)} className="field" value={question} onChange={(event) => setQuestion(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.repeat) { event.preventDefault(); void ask(); } }} placeholder={pending ? "Validate or cancel the pending answer first" : "What evidence explains the margin change?"}/><Button aria-label="Prepare research question" loading={loading} disabled={analyticsOnly || Boolean(pending)} onClick={ask}><Send size={15}/></Button></div>
       </Card>
       <div className="space-y-5">
-        <Card><div className="flex items-center justify-between"><div><p className="eyebrow">Manual AI packet</p><h2 className="mt-1 text-xl font-semibold">Grounded prompt</h2></div><Button variant="secondary" disabled={!pending} onClick={copyPrompt}><Clipboard size={15}/> Copy</Button></div><TextArea label="Prompt" value={pending?.prompt ?? ""} readOnly className="mt-4 min-h-56 font-mono text-xs"/><TextArea label="Paste JSON response" value={raw} disabled={!pending} onChange={(event) => setRaw(event.target.value)} className="mt-3 min-h-40 font-mono text-xs"/><Button loading={loading} disabled={!raw.trim() || !pending || pendingStale || analyticsOnly} className="mt-3" onClick={validate}>Validate answer</Button>{pending && <Button variant="secondary" disabled={loading} className="mt-3 ml-2" onClick={() => { setPending(null); setRaw(""); }}>Cancel packet</Button>}</Card>
+        <Card><div className="flex items-center justify-between"><div><p className="eyebrow">Manual AI packet</p><h2 className="mt-1 text-xl font-semibold">Grounded prompt</h2></div><Button variant="secondary" disabled={!pending} onClick={copyPrompt}><Clipboard size={15}/> Copy</Button></div><TextArea label="Prompt" value={pending?.prompt ?? ""} readOnly className="mt-4 min-h-56 font-mono text-xs"/><TextArea label="Paste JSON response" value={raw} disabled={!pending} onChange={(event) => setRaw(event.target.value)} className="mt-3 min-h-40 font-mono text-xs"/><div className="mt-3 flex flex-wrap gap-2"><Button loading={loading} disabled={!pending || pendingStale || analyticsOnly} onClick={askAi}><Sparkles size={15}/> Ask AI</Button><Button variant="secondary" loading={loading} disabled={!raw.trim() || !pending || pendingStale || analyticsOnly} onClick={() => validate()}>Validate answer</Button></div>{pending && <Button variant="secondary" disabled={loading} className="mt-2" onClick={() => { setPending(null); setRaw(""); }}>Cancel packet</Button>}</Card>
         {pendingStale && <Notice kind="warning">Workspace data changed after this prompt was prepared. Cancel it and ask again.</Notice>}
         {pending && <Card><p className="eyebrow">Retrieved evidence</p><div className="mt-3 space-y-3">{pending.evidence.length === 0 ? <Notice kind="warning">No document passages were available. A valid response must set unsupported=true.</Notice> : pending.evidence.map((chunk) => <div key={chunk.chunk_id} className="border-l-2 border-teal pl-3"><p className="text-xs font-semibold">{chunk.document_name}, p. {chunk.page}</p><p className="mt-1 line-clamp-4 text-xs leading-5 text-mist">{chunk.text}</p></div>)}</div></Card>}
         {error && <Notice kind="error">{error}</Notice>}{message && <Notice kind="success">{message}</Notice>}

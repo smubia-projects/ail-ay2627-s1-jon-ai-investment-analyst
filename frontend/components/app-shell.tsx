@@ -77,6 +77,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </header>
         <GuidedWorkflow />
         <main key={activeProjectId} className="mx-auto max-w-[1560px] p-4 sm:p-6 lg:p-8">{children}</main>
+        <footer className="mx-auto max-w-[1560px] px-4 pb-6 text-[11px] leading-5 text-mist sm:px-6 lg:px-8">EquityLens is research software, not investment advice. Built-in company data is synthetic and does not describe any real company. AI output must be verified against the cited sources.</footer>
         <RateLimitGate />
       </div>
     </div>
