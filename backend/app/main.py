@@ -395,7 +395,7 @@ def generate_report(report_format: Literal["docx", "pdf", "xlsx"], payload: Repo
 
 
 OPENROUTER_URL = (os.getenv("API_BASE_URL", "").strip() or os.getenv("OPENROUTER_BASE_URL", "").strip() or "https://api.apiyi.com/v1").rstrip("/") + "/chat/completions"
-DEFAULT_OPENROUTER_MODEL = "gemini-3.5-flash-lite"
+DEFAULT_OPENROUTER_MODEL = "deepseek-v4-1-flash-260910"
 
 
 def openrouter_model() -> str:
@@ -426,6 +426,8 @@ def configured_inference(payload: InferenceRequest, request: Request) -> dict[st
     }
     if payload.json_mode:
         body["response_format"] = {"type": "json_object"}
+    if "deepseek" in model.lower():
+        body["reasoning_effort"] = "none"  # DeepSeek thinks first by default; this call has a 60 s timeout
     try:
         response = requests.post(
             OPENROUTER_URL,

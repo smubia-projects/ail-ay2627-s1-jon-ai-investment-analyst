@@ -132,6 +132,6 @@ def test_inference_calls_openrouter_when_configured(monkeypatch):
     assert response.json()["output"] == '{"ok": true}'
     assert captured["url"] == "https://api.apiyi.com/v1/chat/completions"
     assert captured["headers"]["Authorization"] == "Bearer test-key"
-    assert captured["body"]["model"] == "gemini-3.5-flash-lite"
+    assert captured["body"]["model"] == "deepseek-v4-1-flash-260910"
     assert captured["body"]["response_format"] == {"type": "json_object"}
     assert client.get("/api/health").json()["inference_configured"] is True
