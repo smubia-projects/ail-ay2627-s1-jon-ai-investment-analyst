@@ -33,6 +33,21 @@ jobs:
           docker push "${REPO}:latest"
           echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
 
+      # Cloud Run pulls Docker Hub images through mirror.gcr.io, which can take minutes to see a
+      # just-pushed tag. Deploying before it does fails, and can leave the mirror caching a 404.
+      - name: Wait for the Docker Hub mirror
+        run: |
+          REF="${IMAGE#docker.io/}"
+          URL="https://mirror.gcr.io/v2/${REF%:*}/manifests/${REF##*:}"
+          ACCEPT="application/vnd.oci.image.index.v1+json,application/vnd.oci.image.manifest.v1+json,application/vnd.docker.distribution.manifest.list.v2+json,application/vnd.docker.distribution.manifest.v2+json"
+          for attempt in $(seq 1 40); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' -H "Accept: $ACCEPT" "$URL")
+            [ "$code" = 200 ] && { echo "Mirror has the image (check $attempt)"; exit 0; }
+            echo "Mirror returned $code (check $attempt/40); retrying in 15s"; sleep 15
+          done
+          echo "::error::mirror.gcr.io did not serve the image within 10 minutes. Is the Docker Hub repository public?"
+          exit 1
+
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
